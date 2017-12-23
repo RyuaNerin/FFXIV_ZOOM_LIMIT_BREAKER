@@ -34,9 +34,12 @@ namespace FFXIV_ZoomLimitBreaker
 
         private void getValues()
         {
-            numericUpDown1.Value = Convert.ToDecimal(Registry.GetValue("HKEY_CURRENT_USER\\SOFTWARE\\ZOOMHACK", "FOV", 0.78f));
-            numericUpDown2.Value = Convert.ToDecimal(Registry.GetValue("HKEY_CURRENT_USER\\SOFTWARE\\ZOOMHACK", "ZOOMMAX", 20.0f));
-            numericUpDown3.Value = Convert.ToDecimal(Registry.GetValue("HKEY_CURRENT_USER\\SOFTWARE\\ZOOMHACK", "ZOOMMIN", 1.5f));
+            var a = Convert.ToDecimal(Registry.GetValue("HKEY_CURRENT_USER\\SOFTWARE\\ZOOMHACK", "FOV", 0.78f));
+            var b = Convert.ToDecimal(Registry.GetValue("HKEY_CURRENT_USER\\SOFTWARE\\ZOOMHACK", "ZOOMMAX", 20.0f));
+            var c = Convert.ToDecimal(Registry.GetValue("HKEY_CURRENT_USER\\SOFTWARE\\ZOOMHACK", "ZOOMMIN", 1.5f));
+            numericUpDown1.Value = a;
+            numericUpDown2.Value = b;
+            numericUpDown3.Value = c;
         }
 
         private void saveValues()
@@ -317,23 +320,43 @@ namespace FFXIV_ZoomLimitBreaker
                 })).Start();
             }
             catch { }
-            saveValues();
             Thread.Sleep(30);
         }
 
         private void numericUpDown1_ValueChanged(object sender, EventArgs e)
         {
             RunSetZoom(1);
+            saveValues();
         }
 
         private void numericUpDown2_ValueChanged(object sender, EventArgs e)
         {
             RunSetZoom(2);
+            saveValues();
         }
 
         private void numericUpDown3_ValueChanged(object sender, EventArgs e)
         {
             RunSetZoom(3);
+            saveValues();
+        }
+
+        private void numericUpDown1_KeyUp(object sender, KeyEventArgs e)
+        {
+            RunSetZoom(1);
+            saveValues();
+        }
+
+        private void numericUpDown2_KeyUp(object sender, KeyEventArgs e)
+        {
+            RunSetZoom(2);
+            saveValues();
+        }
+
+        private void numericUpDown3_KeyUp(object sender, KeyEventArgs e)
+        {
+            RunSetZoom(3);
+            saveValues();
         }
     }
 }
