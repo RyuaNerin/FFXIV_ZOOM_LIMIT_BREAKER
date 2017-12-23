@@ -9,3 +9,6 @@ HOW TO USE:
 2. Set Value
 
 3. Enjoy it
+
+
+target version 4.0 - 4.15 (KR, CN, GLOBAL all available)
