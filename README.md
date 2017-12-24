@@ -11,4 +11,9 @@ HOW TO USE:
 3. Enjoy it
 
 
+[Download](https://github.com/laiglinne-ff/FFXIV_ZOOM_LIMIT_BREAKER/releases)
+
 target version 4.0 - 4.15 (KR, CN, GLOBAL all available)
+
+![image](https://github.com/laiglinne-ff/FFXIV_ZOOM_LIMIT_BREAKER/raw/master/ffxiv_20171224_072639.png)
+![image](https://github.com/laiglinne-ff/FFXIV_ZOOM_LIMIT_BREAKER/raw/master/ffxiv_20171224_115212.png)
