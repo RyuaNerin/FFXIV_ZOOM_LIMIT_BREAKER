@@ -159,13 +159,20 @@ namespace FFXIV_ZoomLimitBreaker
             foreach (var offset in offsets)
             {
                 IntPtr read;
-                if (!(ReadProcessMemory(ptr, IntPtr.Add(addr, offset), buffer, buffer.Length, out read)))
+                try
                 {
-                    throw new Exception("Unable to read process memory");
+                    if (!(ReadProcessMemory(ptr, IntPtr.Add(addr, offset), buffer, buffer.Length, out read)))
+                    {
+                        throw new Exception("Unable to read process memory");
+                    }
+                    addr = (size == 8)
+                        ? new IntPtr(BitConverter.ToInt64(buffer, 0))
+                        : new IntPtr(BitConverter.ToInt32(buffer, 0));
                 }
-                addr = (size == 8)
-                    ? new IntPtr(BitConverter.ToInt64(buffer, 0))
-                    : new IntPtr(BitConverter.ToInt32(buffer, 0));
+                catch
+                {
+
+                }
             }
             return IntPtr.Add(addr, finalOffset);
         }
@@ -221,22 +228,26 @@ namespace FFXIV_ZoomLimitBreaker
             IntPtr read;
             int index;
 
-            while (posPtr.ToInt64() < maxPtr.ToInt64())
+            try
             {
-                read = new IntPtr(Math.Min(maxPtr.ToInt64() - posPtr.ToInt64(), 4096));
-                if (ReadProcessMemory(hProcess, posPtr, buff, read, out read))
+                while (posPtr.ToInt64() < maxPtr.ToInt64())
                 {
-                    index = FindArray(buff, patArray, 0, read.ToInt32());
-                    if (index != -1)
+                    read = new IntPtr(Math.Min(maxPtr.ToInt64() - posPtr.ToInt64(), 4096));
+                    if (ReadProcessMemory(hProcess, posPtr, buff, read, out read))
                     {
-                        long ptr = posPtr.ToInt64() + index;
-                        ptr += patArray.Length;
-                        ptr += BitConverter.ToInt32(buff, index + patArray.Length - 4);
-                        return (IntPtr)ptr;
+                        index = FindArray(buff, patArray, 0, read.ToInt32());
+                        if (index != -1)
+                        {
+                            long ptr = posPtr.ToInt64() + index;
+                            ptr += patArray.Length;
+                            ptr += BitConverter.ToInt32(buff, index + patArray.Length - 4);
+                            return (IntPtr)ptr;
+                        }
+                        posPtr = new IntPtr(posPtr.ToInt64() + read.ToInt64() - patArray.Length + 1);
                     }
-                    posPtr = new IntPtr(posPtr.ToInt64() + read.ToInt64() - patArray.Length + 1);
                 }
             }
+            catch { }
             return IntPtr.Zero;
         }
 
