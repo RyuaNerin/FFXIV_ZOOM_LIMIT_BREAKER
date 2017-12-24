@@ -1,6 +1,8 @@
 # FFXIV_ZOOM_LIMIT_BREAKER
 Are you Tired find Structure value with CheatEngine? Try This (ONLY 64Bit Arch)
 
+(Automatic find structure address after patch)
+
 
 HOW TO USE:
 
