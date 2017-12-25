@@ -10,26 +10,45 @@ namespace FFXIV_ZoomLimitBreaker
 {
     public partial class Form1 : Form
     {
-        public string Signiture = "8B****85C074**83F8**75**488B05********83F8**74**4898488D0D********";
-        public int current = 0x128;
-        public int zoommin = 0x12C;
-        public int zoommax = 0x130;
-        public int fofvcur = 0x134;
-        public int fofvmin = 0x138;
-        public int fofvmax = 0x13C;
+        [Flags]
+        enum Fovs
+        {
+            All = Fov | Zoom | ZoomCur | Init,
+            Fov = 1,
+            Zoom = 2,
+            ZoomCur = 4,
+            ZoomMin = 8,
+            Init = 16
+        }
+        struct Fdata
+        {
+            public float Fov;
+            public float Zoom;
+            public float ZoomMin;
+        }
+        private struct SigInfo
+        {
+            public int Pid;
+            public IntPtr hProcess;
+            public IntPtr AddrFromSignature;
+        }
+        private Dictionary<int, SigInfo> sig = new Dictionary<int, SigInfo>();
+
+
+        public const string Signiture = "8B****85C074**83F8**75**488B05********83F8**74**4898488D0D********";
+        public const int current = 0x128;
+        public const int zoommin = 0x12C;
+        public const int zoommax = 0x130;
+        public const int fofvcur = 0x134;
+        public const int fofvmin = 0x138;
+        public const int fofvmax = 0x13C;
+
         public Form1()
         {
             Console.WriteLine("test");
             Debug.WriteLine("test");
             InitializeComponent();
             getValues();
-        }
-
-        private IntPtr m_hProcess;
-
-        private void Form1_Load(object sender, EventArgs e)
-        {
-            ProcessLoad(0);
         }
 
         private void getValues()
@@ -49,95 +68,123 @@ namespace FFXIV_ZoomLimitBreaker
             Registry.SetValue("HKEY_CURRENT_USER\\SOFTWARE\\ZOOMHACK", "ZOOMMIN", numericUpDown3.Value);
         }
 
-        private Dictionary<int, IntPtr> sig = new Dictionary<int, IntPtr>();
-
-        private void ProcessLoad(int isFov)
+        private void Default_Click(object sender, EventArgs e)
         {
-            foreach (var i in Process.GetProcesses())
-            {
-                Console.WriteLine(i.ProcessName);
-                if (i.ProcessName == "ffxiv_dx11")
-                {
-                    this.m_hProcess = OpenProcess(ProcessAccessFlags.All, false, i.Id);
-                    var n = IntPtr.Zero;
+            numericUpDown1.Value = (decimal)0.78;
+            numericUpDown2.Value = (decimal)20.0;
+            numericUpDown3.Value = (decimal)1.5;
+        }
 
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            SetAndSave(Fovs.All);
+        }
+
+        private void numericUpDown1_ValueChanged(object sender, EventArgs e)
+        {
+            SetAndSave(Fovs.Fov);
+        }
+
+        private void numericUpDown2_ValueChanged(object sender, EventArgs e)
+        {
+            SetAndSave(Fovs.Zoom);
+        }
+
+        private void numericUpDown3_ValueChanged(object sender, EventArgs e)
+        {
+            SetAndSave(Fovs.ZoomMin);
+        }
+
+        private void numericUpDown1_KeyUp(object sender, KeyEventArgs e)
+        {
+            SetAndSave(Fovs.Fov);
+        }
+
+        private void numericUpDown2_KeyUp(object sender, KeyEventArgs e)
+        {
+            SetAndSave(Fovs.Zoom);
+        }
+
+        private void numericUpDown3_KeyUp(object sender, KeyEventArgs e)
+        {
+            SetAndSave(Fovs.ZoomMin);
+        }
+
+        private void SetAndSave(Fovs fovs)
+        {
+            var data = new Fdata
+            {
+                Fov = (float)this.numericUpDown1.Value,
+                Zoom = (float)this.numericUpDown2.Value,
+                ZoomMin = (float)this.numericUpDown3.Value,
+            };
+
+            try
+            {
+                new Thread(new ThreadStart(() =>
+                {
+                    ProcessLoad(fovs, data);
+                })).Start();
+            }
+            catch { }
+            Thread.Sleep(30);
+
+            saveValues();
+        }
+
+        private void ProcessLoad(Fovs fov, Fdata data)
+        {
+            foreach (var i in Process.GetProcessesByName("ffxiv_dx11"))
+            {
+                SigInfo n;
+
+                lock (sig)
+                {
                     if (!sig.ContainsKey(i.Id))
-                        n = Scan(this.m_hProcess, Signiture, i.MainModule.BaseAddress, i.MainModule.ModuleMemorySize);
+                    {
+                        n = new SigInfo
+                        {
+                            Pid = i.Id,
+                            hProcess = OpenProcess(ProcessAccessFlags.All, false, i.Id)
+                        };
+                        if (n.hProcess == IntPtr.Zero)
+                            continue;
+                        n.AddrFromSignature = Scan(n.hProcess, Signiture, i.MainModule.BaseAddress, i.MainModule.ModuleMemorySize);
+
+                        sig.Add(n.Pid, n);
+                    }
                     else
                         n = sig[i.Id];
+                }
 
-                    float dfov = 0.78f;
-                    float dzoom = 20.0f;
-                    float dzooms = 20.0f;
-                    float dzoommin = 1.5f;
+                int[] vx = new int[] { (int)(n.AddrFromSignature.ToInt64() - i.MainModule.BaseAddress.ToInt64()) };
+                
+                var addr = ReadPointer(n.hProcess, n.AddrFromSignature);
+                if (addr == IntPtr.Zero)
+                    continue;
 
-                    Invoke((MethodInvoker)delegate
-                    {
-                        dfov = (float)numericUpDown1.Value;
-                        dzoom = dzooms = (float)numericUpDown2.Value;
-                        dzoommin = (float)numericUpDown3.Value;
-                    });
+                if (fov.HasFlag(Fovs.Zoom))
+                {
+                    if (fov.HasFlag(Fovs.Init))
+                        data.Zoom = 20.0f;
+                    
+                    Write(data.Zoom, n.hProcess, addr + zoommax);
+                }
 
-                    bool isfov = false;
-                    bool iszoom = false;
-                    bool iszoomcur = false;
-                    bool iszoommin = false;
+                if (fov.HasFlag(Fovs.ZoomCur))
+                {
+                    Write(data.Zoom, n.hProcess, addr + current);
+                }
 
-                    int[] vx = new int[] { (int)(n.ToInt64() - i.MainModule.BaseAddress.ToInt64()) };
+                if (fov.HasFlag(Fovs.ZoomMin))
+                {
+                    Write(data.ZoomMin, n.hProcess, addr + zoommin);
+                }
 
-                    switch (isFov)
-                    {
-                        case 0:
-                            isfov = iszoom = iszoomcur = true;
-                            break;
-                        case 1:
-                            isfov = true;
-                            break;
-                        case 2:
-                            iszoom = true;
-                            break;
-                        case 3:
-                            iszoommin = true;
-                            break;
-                        case 4:
-                            iszoomcur = true;
-                            break;
-                    }
-
-                    if(iszoom)
-                    {
-                        if (isFov == 0)
-                            dzoom = 20.0f;
-
-                        var addr = GetAddress(8, i, this.m_hProcess, vx, zoommax);
-                        Write(dzoom, this.m_hProcess, addr);
-                    }
-
-                    if (isFov == 0)
-                    {
-                        var addr = GetAddress(8, i, this.m_hProcess, vx, zoommax);
-                        Write(dzooms, this.m_hProcess, addr);
-                    }
-
-                    if (iszoomcur)
-                    {
-                        var addr = GetAddress(8, i, this.m_hProcess, vx, current);
-                        Write(dzoom, this.m_hProcess, addr);
-                    }
-
-                    if(iszoommin)
-                    {
-                        var addr = GetAddress(8, i, this.m_hProcess, vx, zoommin);
-                        Write(dzoommin, this.m_hProcess, addr);
-                    }
-
-                    if (isfov)
-                    {
-                        var addr = GetAddress(8, i, this.m_hProcess, vx, fofvcur);
-                        Write(dfov, this.m_hProcess, addr);
-                        addr = GetAddress(8, i, this.m_hProcess, vx, fofvmax);
-                        Write(dfov, this.m_hProcess, addr);
-                    }
+                if (fov.HasFlag(Fovs.Fov))
+                {
+                    Write(data.Fov, n.hProcess, addr + fofvcur);
+                    Write(data.Fov, n.hProcess, addr + fofvmax);
                 }
             }
         }
@@ -150,31 +197,6 @@ namespace FFXIV_ZoomLimitBreaker
             {
                 
             }
-        }
-
-        private static IntPtr GetAddress(byte size, Process process, IntPtr ptr, IEnumerable<int> offsets, int finalOffset)
-        {
-            var addr = process.MainModule.BaseAddress;
-            var buffer = new byte[size];
-            foreach (var offset in offsets)
-            {
-                IntPtr read;
-                try
-                {
-                    if (!(ReadProcessMemory(ptr, IntPtr.Add(addr, offset), buffer, buffer.Length, out read)))
-                    {
-                        throw new Exception("Unable to read process memory");
-                    }
-                    addr = (size == 8)
-                        ? new IntPtr(BitConverter.ToInt64(buffer, 0))
-                        : new IntPtr(BitConverter.ToInt32(buffer, 0));
-                }
-                catch
-                {
-
-                }
-            }
-            return IntPtr.Add(addr, finalOffset);
         }
 
         [DllImport("kernel32.dll", SetLastError = true)]
@@ -216,6 +238,9 @@ namespace FFXIV_ZoomLimitBreaker
             IntPtr nSize,
             [Out]
                 out IntPtr lpNumberOfBytesRead);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        public static extern bool CloseHandle(IntPtr hHandle);
 
         public static IntPtr Scan(IntPtr hProcess, string pattern, IntPtr baseAddr, long maxsize = 0)
         {
@@ -285,89 +310,18 @@ namespace FFXIV_ZoomLimitBreaker
             return -1;
         }
 
-        public static IntPtr ReadPointer(IntPtr handle, bool isX64, IntPtr address)
+        public static IntPtr ReadPointer(IntPtr handle,IntPtr address)
         {
-            int size_t = isX64 ? 8 : 4;
-
-            byte[] lpBuffer = new byte[size_t];
-            IntPtr read;
-            if (!ReadProcessMemory(handle, address, lpBuffer, new IntPtr(size_t), out read) || read.ToInt64() != size_t)
+            byte[] lpBuffer = new byte[8];
+            if (!ReadProcessMemory(handle, address, lpBuffer, 8, out IntPtr read) || read.ToInt64() != 8)
                 return IntPtr.Zero;
 
-            if (isX64)
-                return new IntPtr(BitConverter.ToInt64(lpBuffer, 0));
-            else
-                return new IntPtr(BitConverter.ToInt32(lpBuffer, 0));
+            return new IntPtr(BitConverter.ToInt64(lpBuffer, 0));
         }
 
-        public static byte[] ReadBytes(IntPtr handle, IntPtr address, int length)
+        static class NativeMethods
         {
-            if (length <= 0 || address == IntPtr.Zero)
-                return null;
 
-            byte[] lpBuffer = new byte[length];
-
-            IntPtr read = IntPtr.Zero;
-
-            ReadProcessMemory(handle, address, lpBuffer, new IntPtr(length), out read);
-
-            return lpBuffer;
-        }
-
-        private void Default_Click(object sender, EventArgs e)
-        {
-            numericUpDown1.Value = (decimal)0.78;
-            numericUpDown2.Value = (decimal)20.0;
-            numericUpDown3.Value = (decimal)1.5;
-        }
-
-        private void RunSetZoom(int i)
-        {
-            try
-            {
-                new Thread(new ThreadStart(() =>
-                {
-                    ProcessLoad(i);
-                })).Start();
-            }
-            catch { }
-            Thread.Sleep(30);
-        }
-
-        private void numericUpDown1_ValueChanged(object sender, EventArgs e)
-        {
-            RunSetZoom(1);
-            saveValues();
-        }
-
-        private void numericUpDown2_ValueChanged(object sender, EventArgs e)
-        {
-            RunSetZoom(2);
-            saveValues();
-        }
-
-        private void numericUpDown3_ValueChanged(object sender, EventArgs e)
-        {
-            RunSetZoom(3);
-            saveValues();
-        }
-
-        private void numericUpDown1_KeyUp(object sender, KeyEventArgs e)
-        {
-            RunSetZoom(1);
-            saveValues();
-        }
-
-        private void numericUpDown2_KeyUp(object sender, KeyEventArgs e)
-        {
-            RunSetZoom(2);
-            saveValues();
-        }
-
-        private void numericUpDown3_KeyUp(object sender, KeyEventArgs e)
-        {
-            RunSetZoom(3);
-            saveValues();
         }
     }
 }
