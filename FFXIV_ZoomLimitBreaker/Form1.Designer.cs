@@ -145,9 +145,9 @@
             this.label2.Font = new System.Drawing.Font("Microsoft NeoGothic", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(129)));
             this.label2.Location = new System.Drawing.Point(126, 35);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(198, 17);
+            this.label2.Size = new System.Drawing.Size(150, 34);
             this.label2.TabIndex = 10;
-            this.label2.Text = "Dev: FFXIV KR MOOGLE 라그린네";
+            this.label2.Text = "Dev: FFXIV KR MOOGLE \r\n라그린네, 륜아린";
             // 
             // numericUpDown3
             // 
